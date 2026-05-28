@@ -652,9 +652,10 @@ async function searchOFF(){
   btn.disabled=true;btn.textContent='Searching…';
   const safetyTimer=setTimeout(()=>{btn.disabled=false;btn.textContent='Search';},8000);
   try{
-    // Use Open Food Facts search endpoint pointed at common foods
-    const url=`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&sort_by=unique_scans_n&countries_tags=en:united-kingdom&fields=product_name,brands,nutriments,languages_tags,categories_tags`;
-    const res=await fetch(url,{headers:{'User-Agent':'FatLossTracker/1.0'}});
+    // Use CORS proxy for GitHub Pages compatibility
+    const proxy='https://corsproxy.io/?';
+    const url=proxy+encodeURIComponent(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&sort_by=unique_scans_n&countries_tags=en:united-kingdom&fields=product_name,brands,nutriments,languages_tags,categories_tags`);
+    const res=await fetch(url);
     const data=await res.json();
 
     let products=(data.products||[]).filter(p=>{
@@ -664,8 +665,8 @@ async function searchOFF(){
 
     // Also try global if UK returns nothing
     if(products.length < 3){
-      const url2=`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=30&sort_by=unique_scans_n&fields=product_name,brands,nutriments,languages_tags,categories_tags`;
-      const res2=await fetch(url2,{headers:{'User-Agent':'FatLossTracker/1.0'}});
+      const url2=proxy+encodeURIComponent(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=30&sort_by=unique_scans_n&fields=product_name,brands,nutriments,languages_tags,categories_tags`);
+      const res2=await fetch(url2);
       const data2=await res2.json();
       products=(data2.products||[]).filter(p=>{
         const n=p.nutriments;
