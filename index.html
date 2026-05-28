@@ -174,7 +174,7 @@ header .subtitle{font-family:var(--mono);font-size:0.75rem;color:var(--green)}
     <div class="sep"><div class="sep-line"></div><span class="sep-txt">or search online</span><div class="sep-line"></div></div>
 
     <!-- 2. Open Food Facts search -->
-    <div class="quick-pick-label">Look up food macros (USDA FoodData)</div>
+    <div class="quick-pick-label">Look up food macros (Open Food Facts)</div>
     <div class="off-search-row">
       <input type="text" id="off-search" placeholder="e.g. chicken breast, oats, banana…" onkeydown="if(event.key==='Enter')searchOFF()">
       <button class="btn btn-green" id="off-btn" onclick="searchOFF()">Search</button>
@@ -636,7 +636,7 @@ document.addEventListener('click',e=>{
   }
 });
 
-// ── USDA FoodData Central search ─────────────────────────
+// ── Nutritionix food search ───────────────────────────────
 let offSelected=null;
 let offProducts=[];
 async function searchOFF(){
@@ -652,37 +652,58 @@ async function searchOFF(){
   btn.disabled=true;btn.textContent='Searching…';
   const safetyTimer=setTimeout(()=>{btn.disabled=false;btn.textContent='Search';},8000);
   try{
-    // USDA FoodData Central - free, no key needed for basic search
-    const url=`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(q)}&dataType=SR%20Legacy,Foundation&pageSize=8&api_key=DEMO_KEY`;
-    const res=await fetch(url);
+    // Use Open Food Facts search endpoint pointed at common foods
+    const url=`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&sort_by=unique_scans_n&countries_tags=en:united-kingdom&fields=product_name,brands,nutriments,languages_tags,categories_tags`;
+    const res=await fetch(url,{headers:{'User-Agent':'FatLossTracker/1.0'}});
     const data=await res.json();
-    const foods=(data.foods||[]).filter(f=>f.foodNutrients&&f.description);
 
-    if(!foods.length){
-      // Fallback: try broader search including branded
-      const url2=`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(q)}&pageSize=10&api_key=DEMO_KEY`;
-      const res2=await fetch(url2);
+    let products=(data.products||[]).filter(p=>{
+      const n=p.nutriments;
+      return p.product_name && n && n['energy-kcal_100g']!=null && n['energy-kcal_100g']>0;
+    });
+
+    // Also try global if UK returns nothing
+    if(products.length < 3){
+      const url2=`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=30&sort_by=unique_scans_n&fields=product_name,brands,nutriments,languages_tags,categories_tags`;
+      const res2=await fetch(url2,{headers:{'User-Agent':'FatLossTracker/1.0'}});
       const data2=await res2.json();
-      offProducts=(data2.foods||[]).filter(f=>f.foodNutrients&&f.description).slice(0,8);
-    } else {
-      offProducts=foods;
+      products=(data2.products||[]).filter(p=>{
+        const n=p.nutriments;
+        return p.product_name && n && n['energy-kcal_100g']!=null && n['energy-kcal_100g']>0;
+      });
     }
 
-    if(!offProducts.length){status.textContent='No results — try a different term';clearTimeout(safetyTimer);btn.disabled=false;btn.textContent='Search';return;}
+    // Filter to English-readable names
+    products=products.filter(p=>/^[a-zA-Z0-9\s\-'&(),./!%]+$/.test(p.product_name));
+
+    // Score: prefer generic/whole foods
+    const scored=products.map(p=>{
+      const cats=(p.categories_tags||[]).join(' ');
+      let score=0;
+      if(!p.brands) score+=8;
+      if(p.product_name.split(' ').length<=4) score+=4;
+      if(/raw|fresh|plain|whole|natural/.test(cats)) score+=6;
+      if(/en:/.test((p.languages_tags||[]).join(''))) score+=3;
+      return{...p,_score:score};
+    });
+    scored.sort((a,b)=>b._score-a._score);
+    offProducts=scored.slice(0,8);
+
+    if(!offProducts.length){
+      status.textContent='No results found — try a simpler term (e.g. "banana" not "ripe banana")';
+      clearTimeout(safetyTimer);btn.disabled=false;btn.textContent='Search';return;
+    }
 
     status.textContent=offProducts.length+' result'+(offProducts.length!==1?'s':'')+' found — select one';
-    dd.innerHTML=offProducts.map((f,i)=>{
-      const getNutrient=(id)=>{
-        const n=f.foodNutrients.find(n=>n.nutrientId===id||n.nutrientNumber===String(id));
-        return n?r1(n.value||0):0;
-      };
-      const kcal=Math.round(getNutrient(1008)||getNutrient(208));
-      const pro=getNutrient(1003)||getNutrient(203);
-      const carb=getNutrient(1005)||getNutrient(205);
-      const fat=getNutrient(1004)||getNutrient(204);
-      const name=f.description.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+    dd.innerHTML=offProducts.map((p,i)=>{
+      const n=p.nutriments;
+      const kcal=Math.round(n['energy-kcal_100g']||0);
+      const pro=r1(n['proteins_100g']||0);
+      const carb=r1(n['carbohydrates_100g']||0);
+      const fat=r1(n['fat_100g']||0);
+      const brand=p.brands?' · '+p.brands.split(',')[0].trim():'';
       return `<div class="dd-item" onclick="selectOFF(${i})">
-        <span class="dd-name">${name}</span>
+        <span class="dd-name">${p.product_name}${brand}</span>
         <span class="dd-macros">${kcal}kcal P:${pro}g C:${carb}g F:${fat}g <span style="color:var(--text3)">per 100g</span></span>
       </div>`;
     }).join('');
@@ -704,31 +725,24 @@ function selectOFF(i){
 function updateOFFPreview(){
   if(!offSelected) return;
   const portion=parseFloat(document.getElementById('off-portion').value)||100;
+  const n=offSelected.nutriments;
   const f=portion/100;
-  const getNutrient=(id)=>{
-    const n=offSelected.foodNutrients.find(n=>n.nutrientId===id||n.nutrientNumber===String(id));
-    return n?n.value||0:0;
-  };
-  const kcal=Math.round((getNutrient(1008)||getNutrient(208))*f);
-  const pro=r1((getNutrient(1003)||getNutrient(203))*f);
-  const carb=r1((getNutrient(1005)||getNutrient(205))*f);
-  const fat=r1((getNutrient(1004)||getNutrient(204))*f);
+  const kcal=Math.round((n['energy-kcal_100g']||0)*f);
+  const pro=r1((n['proteins_100g']||0)*f);
+  const carb=r1((n['carbohydrates_100g']||0)*f);
+  const fat=r1((n['fat_100g']||0)*f);
   document.getElementById('off-preview').textContent=`For ${portion}g: ${kcal} kcal  ·  P: ${pro}g  ·  C: ${carb}g  ·  F: ${fat}g`;
 }
 function applyOFFPortion(){
   if(!offSelected) return;
   const portion=parseFloat(document.getElementById('off-portion').value)||100;
+  const n=offSelected.nutriments;
   const f=portion/100;
-  const getNutrient=(id)=>{
-    const n=offSelected.foodNutrients.find(n=>n.nutrientId===id||n.nutrientNumber===String(id));
-    return n?n.value||0:0;
-  };
-  const name=offSelected.description.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
-  document.getElementById('f-name').value=`${name} (${portion}g)`;
-  document.getElementById('f-cal').value=Math.round((getNutrient(1008)||getNutrient(208))*f);
-  document.getElementById('f-pro').value=r1((getNutrient(1003)||getNutrient(203))*f);
-  document.getElementById('f-carb').value=r1((getNutrient(1005)||getNutrient(205))*f);
-  document.getElementById('f-fat').value=r1((getNutrient(1004)||getNutrient(204))*f);
+  document.getElementById('f-name').value=`${offSelected.product_name} (${portion}g)`;
+  document.getElementById('f-cal').value=Math.round((n['energy-kcal_100g']||0)*f);
+  document.getElementById('f-pro').value=r1((n['proteins_100g']||0)*f);
+  document.getElementById('f-carb').value=r1((n['carbohydrates_100g']||0)*f);
+  document.getElementById('f-fat').value=r1((n['fat_100g']||0)*f);
   document.getElementById('off-search').value='';
   document.getElementById('off-dropdown').innerHTML='';
   document.getElementById('off-dropdown').classList.remove('open');
