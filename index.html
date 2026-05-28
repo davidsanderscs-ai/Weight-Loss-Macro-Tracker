@@ -652,10 +652,13 @@ async function searchOFF(){
   btn.disabled=true;btn.textContent='Searching…';
   const safetyTimer=setTimeout(()=>{btn.disabled=false;btn.textContent='Search';},8000);
   try{
-    // Use CORS proxy for GitHub Pages compatibility
-    const proxy='https://corsproxy.io/?';
-    const url=proxy+encodeURIComponent(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&sort_by=unique_scans_n&countries_tags=en:united-kingdom&fields=product_name,brands,nutriments,languages_tags,categories_tags`);
-    const res=await fetch(url);
+    // Open Food Facts v1 API - CORS enabled for browser requests
+    const url=`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&sort_by=unique_scans_n&fields=product_name,brands,nutriments,languages_tags,categories_tags`;
+    const res=await fetch(url,{
+      method:'GET',
+      headers:{'Accept':'application/json'}
+    });
+    if(!res.ok) throw new Error('API error '+res.status);
     const data=await res.json();
 
     let products=(data.products||[]).filter(p=>{
@@ -663,19 +666,14 @@ async function searchOFF(){
       return p.product_name && n && n['energy-kcal_100g']!=null && n['energy-kcal_100g']>0;
     });
 
-    // Also try global if UK returns nothing
-    if(products.length < 3){
-      const url2=proxy+encodeURIComponent(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=30&sort_by=unique_scans_n&fields=product_name,brands,nutriments,languages_tags,categories_tags`);
-      const res2=await fetch(url2);
-      const data2=await res2.json();
-      products=(data2.products||[]).filter(p=>{
-        const n=p.nutriments;
-        return p.product_name && n && n['energy-kcal_100g']!=null && n['energy-kcal_100g']>0;
-      });
-    }
-
-    // Filter to English-readable names
+    // Filter to English-readable names only
     products=products.filter(p=>/^[a-zA-Z0-9\s\-'&(),./!%]+$/.test(p.product_name));
+
+    // If still nothing useful, widen search
+    if(products.length < 2){
+      status.textContent='No results — try a simpler term (e.g. "banana" not "ripe banana")';
+      clearTimeout(safetyTimer);btn.disabled=false;btn.textContent='Search';return;
+    }
 
     // Score: prefer generic/whole foods
     const scored=products.map(p=>{
@@ -711,7 +709,7 @@ async function searchOFF(){
     dd.classList.add('open');
   }catch(e){
     status.textContent='Search failed — check internet connection';
-    console.error(e);
+    console.error('Food search error:',e);
   }
   clearTimeout(safetyTimer);
   btn.disabled=false;btn.textContent='Search';
