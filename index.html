@@ -171,13 +171,12 @@ header .subtitle{font-family:var(--mono);font-size:0.75rem;color:var(--green)}
       </div>
     </div>
 
-    <div class="sep"><div class="sep-line"></div><span class="sep-txt">or search online</span><div class="sep-line"></div></div>
+    <div class="sep"><div class="sep-line"></div><span class="sep-txt">or search food database</span><div class="sep-line"></div></div>
 
     <!-- 2. Open Food Facts search -->
-    <div class="quick-pick-label">Look up food macros (Open Food Facts)</div>
+    <div class="quick-pick-label">Search built-in food database (100+ foods)</div>
     <div class="off-search-row">
-      <input type="text" id="off-search" placeholder="e.g. chicken breast, oats, banana…" onkeydown="if(event.key==='Enter')searchOFF()">
-      <button class="btn btn-green" id="off-btn" onclick="searchOFF()">Search</button>
+      <input type="text" id="off-search" placeholder="e.g. chicken, oats, banana, whey…" oninput="searchOFF()">
     </div>
     <div id="off-status" style="font-size:0.7rem;color:var(--text3);min-height:16px;margin-bottom:2px"></div>
     <div class="off-dropdown" id="off-dropdown"></div>
@@ -636,158 +635,178 @@ document.addEventListener('click',e=>{
   }
 });
 
-// ── Nutritionix food search ───────────────────────────────
+// ── Built-in food database ────────────────────────────────
+const FOOD_DB=[
+  // ── Proteins ──
+  {n:'Chicken breast (skinless)',cal:165,pro:31,carb:0,fat:3.6},
+  {n:'Chicken thigh (skinless)',cal:179,pro:26,carb:0,fat:8},
+  {n:'Turkey breast',cal:135,pro:30,carb:0,fat:1},
+  {n:'Beef mince (5% fat)',cal:137,pro:21,carb:0,fat:5},
+  {n:'Beef mince (20% fat)',cal:254,pro:17,carb:0,fat:20},
+  {n:'Beef steak (sirloin)',cal:207,pro:26,carb:0,fat:11},
+  {n:'Pork loin',cal:143,pro:26,carb:0,fat:4},
+  {n:'Bacon (back, grilled)',cal:215,pro:25,carb:0,fat:13},
+  {n:'Salmon (fillet)',cal:208,pro:20,carb:0,fat:13},
+  {n:'Tuna (tinned in water)',cal:86,pro:19,carb:0,fat:0.6},
+  {n:'Tuna (tinned in oil)',cal:189,pro:27,carb:0,fat:9},
+  {n:'Cod fillet',cal:82,pro:18,carb:0,fat:0.7},
+  {n:'Prawns',cal:99,pro:21,carb:0,fat:1.1},
+  {n:'Egg (whole)',cal:143,pro:13,carb:0.7,fat:10},
+  {n:'Egg white',cal:52,pro:11,carb:0.7,fat:0.2},
+  {n:'Whey protein powder',cal:370,pro:75,carb:7,fat:5},
+  {n:'Casein protein powder',cal:360,pro:72,carb:8,fat:4},
+  {n:'Soy protein powder',cal:338,pro:68,carb:10,fat:3},
+  {n:'Greek yogurt (0% fat)',cal:57,pro:10,carb:3.6,fat:0.4},
+  {n:'Greek yogurt (full fat)',cal:97,pro:9,carb:3.8,fat:5},
+  {n:'Cottage cheese (low fat)',cal:72,pro:12,carb:3,fat:1},
+  {n:'Tofu (firm)',cal:76,pro:8,carb:2,fat:4},
+  {n:'Tempeh',cal:193,pro:19,carb:9,fat:11},
+  {n:'Edamame',cal:122,pro:11,carb:10,fat:5},
+  // ── Carbohydrates ──
+  {n:'White rice (cooked)',cal:130,pro:2.7,carb:28,fat:0.3},
+  {n:'Brown rice (cooked)',cal:123,pro:2.7,carb:26,fat:1},
+  {n:'Oats (dry)',cal:389,pro:17,carb:66,fat:7},
+  {n:'Oats (cooked with water)',cal:71,pro:2.5,carb:12,fat:1.5},
+  {n:'White pasta (cooked)',cal:131,pro:5,carb:25,fat:1.1},
+  {n:'Wholewheat pasta (cooked)',cal:124,pro:5,carb:23,fat:1},
+  {n:'White bread (1 slice ~40g)',cal:266,pro:9,carb:49,fat:3.2},
+  {n:'Wholemeal bread (1 slice ~40g)',cal:247,pro:10,carb:41,fat:3.5},
+  {n:'Potato (baked)',cal:93,pro:2.5,carb:21,fat:0.1},
+  {n:'Sweet potato (baked)',cal:90,pro:2,carb:21,fat:0.1},
+  {n:'Quinoa (cooked)',cal:120,pro:4.4,carb:22,fat:1.9},
+  {n:'Lentils (cooked)',cal:116,pro:9,carb:20,fat:0.4},
+  {n:'Chickpeas (cooked)',cal:164,pro:9,carb:27,fat:2.6},
+  {n:'Black beans (cooked)',cal:132,pro:8.9,carb:24,fat:0.5},
+  {n:'Kidney beans (cooked)',cal:127,pro:8.7,carb:23,fat:0.5},
+  {n:'Banana',cal:89,pro:1.1,carb:23,fat:0.3},
+  {n:'Apple',cal:52,pro:0.3,carb:14,fat:0.2},
+  {n:'Orange',cal:47,pro:0.9,carb:12,fat:0.1},
+  {n:'Mango',cal:60,pro:0.8,carb:15,fat:0.4},
+  {n:'Pineapple',cal:50,pro:0.5,carb:13,fat:0.1},
+  {n:'Grapes',cal:67,pro:0.6,carb:17,fat:0.4},
+  {n:'Dates',cal:277,pro:1.8,carb:75,fat:0.2},
+  {n:'Rice cakes',cal:387,pro:8,carb:81,fat:3},
+  {n:'Corn tortilla',cal:218,pro:6,carb:46,fat:3},
+  // ── Fats ──
+  {n:'Olive oil',cal:884,pro:0,carb:0,fat:100},
+  {n:'Coconut oil',cal:892,pro:0,carb:0,fat:99},
+  {n:'Butter',cal:717,pro:0.9,carb:0.1,fat:81},
+  {n:'Avocado',cal:160,pro:2,carb:9,fat:15},
+  {n:'Almonds',cal:579,pro:21,carb:22,fat:50},
+  {n:'Walnuts',cal:654,pro:15,carb:14,fat:65},
+  {n:'Cashews',cal:553,pro:18,carb:30,fat:44},
+  {n:'Peanuts',cal:567,pro:26,carb:16,fat:49},
+  {n:'Peanut butter',cal:588,pro:25,carb:20,fat:50},
+  {n:'Almond butter',cal:614,pro:21,carb:19,fat:56},
+  {n:'Chia seeds',cal:486,pro:17,carb:42,fat:31},
+  {n:'Flaxseeds',cal:534,pro:18,carb:29,fat:42},
+  {n:'Sunflower seeds',cal:584,pro:21,carb:20,fat:51},
+  {n:'Dark chocolate (85%)',cal:598,pro:8,carb:23,fat:43},
+  // ── Dairy ──
+  {n:'Whole milk',cal:61,pro:3.2,carb:4.8,fat:3.3},
+  {n:'Semi-skimmed milk',cal:46,pro:3.4,carb:4.7,fat:1.6},
+  {n:'Skimmed milk',cal:34,pro:3.4,carb:5,fat:0.1},
+  {n:'Cheddar cheese',cal:403,pro:25,carb:0.1,fat:34},
+  {n:'Mozzarella',cal:280,pro:28,carb:3.1,fat:17},
+  {n:'Natural yogurt (low fat)',cal:56,pro:4.8,carb:7.4,fat:0.8},
+  {n:'Cream cheese',cal:342,pro:6,carb:4.1,fat:34},
+  // ── Vegetables ──
+  {n:'Broccoli',cal:34,pro:2.8,carb:7,fat:0.4},
+  {n:'Spinach',cal:23,pro:2.9,carb:3.6,fat:0.4},
+  {n:'Kale',cal:49,pro:4.3,carb:9,fat:0.9},
+  {n:'Cucumber',cal:15,pro:0.7,carb:3.6,fat:0.1},
+  {n:'Tomato',cal:18,pro:0.9,carb:3.9,fat:0.2},
+  {n:'Carrot',cal:41,pro:0.9,carb:10,fat:0.2},
+  {n:'Bell pepper',cal:31,pro:1,carb:6,fat:0.3},
+  {n:'Courgette',cal:17,pro:1.2,carb:3.1,fat:0.3},
+  {n:'Mushrooms',cal:22,pro:3.1,carb:3.3,fat:0.3},
+  {n:'Onion',cal:40,pro:1.1,carb:9,fat:0.1},
+  {n:'Garlic',cal:149,pro:6.4,carb:33,fat:0.5},
+  {n:'Asparagus',cal:20,pro:2.2,carb:3.7,fat:0.1},
+  {n:'Green beans',cal:31,pro:1.8,carb:7,fat:0.1},
+  {n:'Peas',cal:81,pro:5.4,carb:14,fat:0.4},
+  {n:'Corn (sweetcorn)',cal:86,pro:3.2,carb:19,fat:1.2},
+  {n:'Cauliflower',cal:25,pro:1.9,carb:5,fat:0.3},
+  {n:'Celery',cal:16,pro:0.7,carb:3,fat:0.2},
+  {n:'Lettuce',cal:15,pro:1.4,carb:2.9,fat:0.2},
+  // ── Fruit ──
+  {n:'Strawberries',cal:32,pro:0.7,carb:7.7,fat:0.3},
+  {n:'Blueberries',cal:57,pro:0.7,carb:14,fat:0.3},
+  {n:'Raspberries',cal:52,pro:1.2,carb:12,fat:0.7},
+  {n:'Watermelon',cal:30,pro:0.6,carb:7.6,fat:0.2},
+  {n:'Pear',cal:57,pro:0.4,carb:15,fat:0.1},
+  {n:'Kiwi',cal:61,pro:1.1,carb:15,fat:0.5},
+  {n:'Grapefruit',cal:42,pro:0.8,carb:11,fat:0.1},
+  // ── Supplements & other ──
+  {n:'Creatine monohydrate',cal:0,pro:0,carb:0,fat:0},
+  {n:'Dextrose',cal:380,pro:0,carb:95,fat:0},
+  {n:'Maltodextrin',cal:380,pro:0,carb:95,fat:0},
+  {n:'Protein bar (avg)',cal:350,pro:30,carb:35,fat:8},
+  {n:'Honey',cal:304,pro:0.3,carb:82,fat:0},
+  {n:'Jam',cal:250,pro:0.4,carb:65,fat:0.1},
+  {n:'Mayonnaise',cal:680,pro:1,carb:0.6,fat:75},
+  {n:'Ketchup',cal:101,pro:1.7,carb:24,fat:0.1},
+  {n:'Soy sauce',cal:53,pro:5.6,carb:4.9,fat:0.6},
+];
+
 let offSelected=null;
-let offProducts=[];
-async function searchOFF(){
-  const q=document.getElementById('off-search').value.trim();
-  if(!q) return;
+
+function searchOFF(){
+  const q=document.getElementById('off-search').value.trim().toLowerCase();
   const status=document.getElementById('off-status');
   const dd=document.getElementById('off-dropdown');
-  const btn=document.getElementById('off-btn');
   const pw=document.getElementById('off-portion-wrap');
-  status.textContent='Searching…';
   dd.innerHTML='';dd.classList.remove('open');
-  pw.style.display='none';offSelected=null;offProducts=[];
-  btn.disabled=true;btn.textContent='Searching…';
-  const safetyTimer=setTimeout(()=>{btn.disabled=false;btn.textContent='Search';},8000);
-  try{
-    const offUrl=`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&sort_by=unique_scans_n&fields=product_name,brands,nutriments,languages_tags,categories_tags`;
-    
-    // Try multiple approaches in order
-    let data=null;
-    const attempts=[
-      // 1. OFF v2 API (different CORS policy)
-      async()=>{
-        const r=await fetch(`https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(q)}&page_size=24&sort_by=unique_scans_n&fields=product_name,brands,nutriments,languages_tags,categories_tags`,{mode:'cors'});
-        if(!r.ok) throw new Error(r.status);
-        return r.json();
-      },
-      // 2. allorigins proxy
-      async()=>{
-        const r=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(offUrl)}`);
-        if(!r.ok) throw new Error(r.status);
-        const w=await r.json();
-        return JSON.parse(w.contents);
-      },
-      // 3. corsproxy.io
-      async()=>{
-        const r=await fetch(`https://corsproxy.io/?${encodeURIComponent(offUrl)}`);
-        if(!r.ok) throw new Error(r.status);
-        return r.json();
-      },
-      // 4. jsonp.afeld.me proxy
-      async()=>{
-        const r=await fetch(`https://thingproxy.freeboard.io/fetch/${offUrl}`);
-        if(!r.ok) throw new Error(r.status);
-        return r.json();
-      }
-    ];
-
-    for(const attempt of attempts){
-      try{
-        data=await Promise.race([
-          attempt(),
-          new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),5000))
-        ]);
-        if(data&&(data.products||data.count!=null)) break;
-      }catch(e){
-        console.warn('Search attempt failed, trying next...',e.message);
-      }
-    }
-
-    if(!data||!data.products){
-      status.textContent='Search unavailable — please add foods manually';
-      clearTimeout(safetyTimer);btn.disabled=false;btn.textContent='Search';return;
-    }
-
-    let products=(data.products||[]).filter(p=>{
-      const n=p.nutriments;
-      return p.product_name && n && n['energy-kcal_100g']!=null && n['energy-kcal_100g']>0;
-    });
-
-    // Filter to English-readable names only
-    products=products.filter(p=>/^[a-zA-Z0-9\s\-'&(),./!%]+$/.test(p.product_name));
-
-    // If still nothing useful, widen search
-    if(products.length < 2){
-      status.textContent='No results — try a simpler term (e.g. "banana" not "ripe banana")';
-      clearTimeout(safetyTimer);btn.disabled=false;btn.textContent='Search';return;
-    }
-
-    // Score: prefer generic/whole foods
-    const scored=products.map(p=>{
-      const cats=(p.categories_tags||[]).join(' ');
-      let score=0;
-      if(!p.brands) score+=8;
-      if(p.product_name.split(' ').length<=4) score+=4;
-      if(/raw|fresh|plain|whole|natural/.test(cats)) score+=6;
-      if(/en:/.test((p.languages_tags||[]).join(''))) score+=3;
-      return{...p,_score:score};
-    });
-    scored.sort((a,b)=>b._score-a._score);
-    offProducts=scored.slice(0,8);
-
-    if(!offProducts.length){
-      status.textContent='No results found — try a simpler term (e.g. "banana" not "ripe banana")';
-      clearTimeout(safetyTimer);btn.disabled=false;btn.textContent='Search';return;
-    }
-
-    status.textContent=offProducts.length+' result'+(offProducts.length!==1?'s':'')+' found — select one';
-    dd.innerHTML=offProducts.map((p,i)=>{
-      const n=p.nutriments;
-      const kcal=Math.round(n['energy-kcal_100g']||0);
-      const pro=r1(n['proteins_100g']||0);
-      const carb=r1(n['carbohydrates_100g']||0);
-      const fat=r1(n['fat_100g']||0);
-      const brand=p.brands?' · '+p.brands.split(',')[0].trim():'';
-      return `<div class="dd-item" onclick="selectOFF(${i})">
-        <span class="dd-name">${p.product_name}${brand}</span>
-        <span class="dd-macros">${kcal}kcal P:${pro}g C:${carb}g F:${fat}g <span style="color:var(--text3)">per 100g</span></span>
-      </div>`;
-    }).join('');
-    dd.classList.add('open');
-  }catch(e){
-    status.textContent='Search failed — check internet connection';
-    console.error('Food search error:',e);
+  pw.style.display='none';offSelected=null;
+  if(!q){status.textContent='';return;}
+  const matches=FOOD_DB.filter(f=>f.n.toLowerCase().includes(q));
+  if(!matches.length){
+    status.textContent='No matches — try a different term or add manually';
+    return;
   }
-  clearTimeout(safetyTimer);
-  btn.disabled=false;btn.textContent='Search';
+  status.textContent=matches.length+' match'+(matches.length!==1?'es':'')+' — select one';
+  dd.innerHTML=matches.map((f,i)=>`
+    <div class="dd-item" onclick="selectOFF(${FOOD_DB.indexOf(f)})">
+      <span class="dd-name">${f.n}</span>
+      <span class="dd-macros">${f.cal}kcal P:${f.pro}g C:${f.carb}g F:${f.fat}g <span style="color:var(--text3)">per 100g</span></span>
+    </div>`).join('');
+  dd.classList.add('open');
 }
+
 function selectOFF(i){
-  offSelected=offProducts[i];
+  offSelected=FOOD_DB[i];
   const dd=document.getElementById('off-dropdown');
-  dd.querySelectorAll('.dd-item').forEach((el,idx)=>el.style.background=idx===i?'var(--green-dim)':'');
+  dd.querySelectorAll('.dd-item').forEach(el=>el.style.background='');
+  event.currentTarget.style.background='var(--green-dim)';
   document.getElementById('off-portion-wrap').style.display='block';
   updateOFFPreview();
 }
+
 function updateOFFPreview(){
   if(!offSelected) return;
   const portion=parseFloat(document.getElementById('off-portion').value)||100;
-  const n=offSelected.nutriments;
   const f=portion/100;
-  const kcal=Math.round((n['energy-kcal_100g']||0)*f);
-  const pro=r1((n['proteins_100g']||0)*f);
-  const carb=r1((n['carbohydrates_100g']||0)*f);
-  const fat=r1((n['fat_100g']||0)*f);
+  const kcal=Math.round(offSelected.cal*f);
+  const pro=r1(offSelected.pro*f);
+  const carb=r1(offSelected.carb*f);
+  const fat=r1(offSelected.fat*f);
   document.getElementById('off-preview').textContent=`For ${portion}g: ${kcal} kcal  ·  P: ${pro}g  ·  C: ${carb}g  ·  F: ${fat}g`;
 }
 function applyOFFPortion(){
   if(!offSelected) return;
   const portion=parseFloat(document.getElementById('off-portion').value)||100;
-  const n=offSelected.nutriments;
   const f=portion/100;
-  document.getElementById('f-name').value=`${offSelected.product_name} (${portion}g)`;
-  document.getElementById('f-cal').value=Math.round((n['energy-kcal_100g']||0)*f);
-  document.getElementById('f-pro').value=r1((n['proteins_100g']||0)*f);
-  document.getElementById('f-carb').value=r1((n['carbohydrates_100g']||0)*f);
-  document.getElementById('f-fat').value=r1((n['fat_100g']||0)*f);
+  document.getElementById('f-name').value=`${offSelected.n} (${portion}g)`;
+  document.getElementById('f-cal').value=Math.round(offSelected.cal*f);
+  document.getElementById('f-pro').value=r1(offSelected.pro*f);
+  document.getElementById('f-carb').value=r1(offSelected.carb*f);
+  document.getElementById('f-fat').value=r1(offSelected.fat*f);
   document.getElementById('off-search').value='';
   document.getElementById('off-dropdown').innerHTML='';
   document.getElementById('off-dropdown').classList.remove('open');
   document.getElementById('off-status').textContent='✓ Filled in below — adjust if needed then click + Add item';
   document.getElementById('off-portion-wrap').style.display='none';
-  offSelected=null;offProducts=[];
+  offSelected=null;
   document.getElementById('f-name').scrollIntoView({behavior:'smooth',block:'center'});
 }
 
